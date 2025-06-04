@@ -99,6 +99,8 @@ function Get-ScriptDirectory {
 # Default paths for logs and temporary script staging
 $global:LogFilePath = Join-Path $ScriptDirectory 'script.log'
 $global:StagingPath = Join-Path ([System.IO.Path]::GetTempPath()) 'ScriptArcade'
+$global:CentralLogPath = Join-Path $ScriptDirectory 'central.log'
+$global:ExecutionHistory = New-Object System.Collections.ArrayList
 	
 	
 	
@@ -110,7 +112,7 @@ function Show-SettingsDialog {
     $form = New-Object System.Windows.Forms.Form
     $form.Text = 'Settings'
     $form.StartPosition = 'CenterParent'
-    $form.Size = New-Object System.Drawing.Size(400,170)
+    $form.Size = New-Object System.Drawing.Size(400,260)
 
     $lblLog = New-Object System.Windows.Forms.Label
     $lblLog.Text = 'Log File Path:'
@@ -136,19 +138,44 @@ function Show-SettingsDialog {
     $txtStage.Text = $global:StagingPath
     $form.Controls.Add($txtStage)
 
+    $lblCentral = New-Object System.Windows.Forms.Label
+    $lblCentral.Text = 'Central Log Path:'
+    $lblCentral.Location = New-Object System.Drawing.Point(10,100)
+    $lblCentral.AutoSize = $true
+    $form.Controls.Add($lblCentral)
+
+    $txtCentral = New-Object System.Windows.Forms.TextBox
+    $txtCentral.Size = New-Object System.Drawing.Size(260,20)
+    $txtCentral.Location = New-Object System.Drawing.Point(110,98)
+    $txtCentral.Text = $global:CentralLogPath
+    $form.Controls.Add($txtCentral)
+
+    $lblHist = New-Object System.Windows.Forms.Label
+    $lblHist.Text = 'Execution History:'
+    $lblHist.Location = New-Object System.Drawing.Point(10,140)
+    $lblHist.AutoSize = $true
+    $form.Controls.Add($lblHist)
+
+    $lstHist = New-Object System.Windows.Forms.ListBox
+    $lstHist.Size = New-Object System.Drawing.Size(260,80)
+    $lstHist.Location = New-Object System.Drawing.Point(110,138)
+    $global:ExecutionHistory | ForEach-Object { $lstHist.Items.Add($_) }
+    $form.Controls.Add($lstHist)
+
     $btnOK = New-Object System.Windows.Forms.Button
     $btnOK.Text = 'OK'
-    $btnOK.Location = New-Object System.Drawing.Point(210,100)
+    $btnOK.Location = New-Object System.Drawing.Point(210,225)
     $btnOK.Add_Click({
         $global:LogFilePath = $txtLog.Text
         $global:StagingPath = $txtStage.Text
+        $global:CentralLogPath = $txtCentral.Text
         $form.Close()
     })
     $form.Controls.Add($btnOK)
 
     $btnCancel = New-Object System.Windows.Forms.Button
     $btnCancel.Text = 'Cancel'
-    $btnCancel.Location = New-Object System.Drawing.Point(300,100)
+    $btnCancel.Location = New-Object System.Drawing.Point(300,225)
     $btnCancel.Add_Click({ $form.Close() })
     $form.Controls.Add($btnCancel)
 
@@ -1858,6 +1885,11 @@ function Show-pazwh_psf {
         $logbox.Clear()
         $logFile = $global:LogFilePath
         if (!(Test-Path $logFile)) { New-Item -ItemType File -Path $logFile -Force | Out-Null }
+        $centralFile = $global:CentralLogPath
+        if (!(Test-Path $centralFile)) { New-Item -ItemType File -Path $centralFile -Force | Out-Null }
+        $historyEntry = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - $($script:selectedFull.Script.Name)"
+        $global:ExecutionHistory.Add($historyEntry) | Out-Null
+        Add-Content -Path $centralFile -Value $historyEntry
         try {
                 $executionResults = Invoke-Expression $scriptContent
                 if ($executionResults) {
@@ -1865,15 +1897,18 @@ function Show-pazwh_psf {
                                 foreach ($line in $executionResults) {
                                         $logbox.AppendText($line.ToString() + "`n")
                                         Add-Content -Path $logFile -Value $line
+                                        Add-Content -Path $centralFile -Value $line
                                 }
                         } else {
                                 $logbox.AppendText($executionResults.ToString() + "`n")
                                 Add-Content -Path $logFile -Value $executionResults.ToString()
+                                Add-Content -Path $centralFile -Value $executionResults.ToString()
                         }
                 }
         } catch {
                 $logbox.AppendText($_.Exception.Message + "`n")
                 Add-Content -Path $logFile -Value $_.Exception.Message
+                Add-Content -Path $centralFile -Value $_.Exception.Message
         }
 
 }
